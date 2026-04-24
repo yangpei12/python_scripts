@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}通知中心 · 工单系统{% endblock %}
+
+{% block content %}
+<div class="row" style="justify-content:space-between;">
+    <h1>通知中心</h1>
+    <div class="row">
+        <a class="btn secondary" href="?{% if request.GET.unread %}{% else %}unread=1{% endif %}">
+            {% if request.GET.unread %}查看全部{% else %}只看未读{% endif %}
+        </a>
+        <form method="post" action="{% url 'tickets:notification_read_all' %}">{% csrf_token %}<button class="btn secondary" type="submit">全部标为已读</button></form>
+    </div>
+</div>
+
+<div class="card">
+    {% for n in notifications %}
+        <div class="row" style="justify-content:space-between;padding:.5rem 0;border-bottom:1px dashed var(--border);">
+            <div>
+                <form method="post" action="{% url 'tickets:notification_read' n.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn secondary" style="padding:.2rem .5rem;font-size:.8rem;">{% if n.is_read %}查看{% else %}查看并标为已读{% endif %}</button>
+                </form>
+                <span style="margin-left:.5rem;{% if n.is_read %}color:var(--muted);{% endif %}">{{ n.text }}</span>
+                {% if n.ticket %}<span class="muted" style="font-size:.85rem;margin-left:.35rem;">· {{ n.ticket.project_no }}</span>{% endif %}
+            </div>
+            <span class="muted" style="font-size:.85rem;">{{ n.created_at|date:"Y-m-d H:i" }}</span>
+        </div>
+    {% empty %}
+        <div class="muted" style="text-align:center;padding:1rem;">暂无通知</div>
+    {% endfor %}
+</div>
+{% endblock %}

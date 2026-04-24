@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}项目归档 · 工单系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-bar { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin-bottom:1rem; }
+    .filter-bar input[type="text"] { flex:1; min-width:200px; }
+    .scope-tabs a { padding:.35rem .75rem; border-radius:999px; border:1px solid var(--border); color:var(--text); font-size:.85rem; }
+    .scope-tabs a.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+    .num { font-variant-numeric: tabular-nums; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>项目归档</h1>
+<p class="muted">按「项目编号」聚合查看跨工单的所有需求条目。同一项目下多个时间点开的工单会合并展示。</p>
+
+<form method="get" class="filter-bar">
+    <input type="text" name="q" value="{{ q }}" placeholder="搜索项目编号 / 项目名 / 客户">
+    <button class="btn secondary" type="submit">搜索</button>
+    <span class="scope-tabs row">
+        <a class="{% if not scope %}active{% endif %}" href="?{% if q %}q={{ q }}{% endif %}">全部</a>
+        <a class="{% if scope == 'active' %}active{% endif %}" href="?scope=active{% if q %}&q={{ q }}{% endif %}">活跃中</a>
+        <a class="{% if scope == 'closed' %}active{% endif %}" href="?scope=closed{% if q %}&q={{ q }}{% endif %}">全部已关闭</a>
+    </span>
+</form>
+
+<div class="card">
+    <table class="list">
+        <thead>
+            <tr>
+                <th>项目编号</th>
+                <th>项目名 / 客户</th>
+                <th class="num">工单数</th>
+                <th class="num">需求 (已确认 / 总数)</th>
+                <th class="num">活跃工单</th>
+                <th>最近活动</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td><a href="{% url 'tickets:project_detail' r.project_no %}"><strong>{{ r.project_no }}</strong></a></td>
+                <td>
+                    <div>{{ r.project_name|default:"—" }}</div>
+                    <div class="muted" style="font-size:.85rem;">{{ r.client_name|default:"—" }}</div>
+                </td>
+                <td class="num">{{ r.ticket_count }}</td>
+                <td class="num">{{ r.req_accepted }} / {{ r.req_total }}</td>
+                <td class="num">
+                    {% if r.active_ticket_count %}
+                        <span class="badge" style="background:#fef9c3;color:#854d0e;border-color:#fde68a;">{{ r.active_ticket_count }} 个进行中</span>
+                    {% else %}
+                        <span class="badge" style="background:#ecfdf3;color:#166534;border-color:#bbf7d0;">已全部关闭</span>
+                    {% endif %}
+                </td>
+                <td class="muted" style="font-size:.85rem;">{{ r.last_activity|date:"Y-m-d H:i" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="muted" style="text-align:center;padding:1.5rem;">暂无项目</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

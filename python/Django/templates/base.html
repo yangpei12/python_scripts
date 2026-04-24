@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-hans">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}工单系统{% endblock %}</title>
+    <style>
+        :root {
+            --bg: #f4f6f9;
+            --card: #fff;
+            --text: #1a1a1a;
+            --muted: #5c6573;
+            --border: #e2e6ee;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --danger: #dc2626;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+        }
+        a { color: var(--primary); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .layout {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 1.25rem 1rem 3rem;
+        }
+        header.nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 1.5rem;
+        }
+        .brand { font-weight: 700; font-size: 1.1rem; }
+        .nav-links { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.25rem 1.35rem;
+            margin-bottom: 1rem;
+        }
+        h1 { font-size: 1.5rem; margin: 0 0 1rem; }
+        h2 { font-size: 1.15rem; margin: 0 0 0.75rem; }
+        .muted { color: var(--muted); font-size: 0.9rem; }
+        .messages { list-style: none; padding: 0; margin: 0 0 1rem; }
+        .messages li {
+            padding: 0.65rem 0.85rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+        .messages .success { background: #ecfdf3; color: #166534; border: 1px solid #bbf7d0; }
+        .messages .error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+        label { display: block; font-weight: 600; margin: 0.75rem 0 0.35rem; }
+        input[type="text"], input[type="password"], input[type="datetime-local"], select, textarea {
+            width: 100%;
+            max-width: 100%;
+            padding: 0.5rem 0.65rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font: inherit;
+        }
+        textarea { resize: vertical; }
+        .btn {
+            display: inline-block;
+            padding: 0.45rem 0.9rem;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            font: inherit;
+            cursor: pointer;
+            background: var(--primary);
+            color: #fff;
+        }
+        .btn:hover { background: var(--primary-hover); }
+        .btn.secondary { background: #fff; color: var(--text); border-color: var(--border); }
+        .btn.secondary:hover { background: var(--bg); }
+        .btn.danger { background: var(--danger); }
+        .row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
+        table.list { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+        table.list th, table.list td {
+            text-align: left;
+            padding: 0.55rem 0.5rem;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        table.list th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; }
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+        }
+        .errorlist { color: var(--danger); list-style: none; padding: 0; margin: 0.25rem 0 0; font-size: 0.9rem; }
+        hr.sep { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
+        .notif-dot { display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; background:var(--danger); color:#fff; border-radius:999px; font-size:.7rem; margin-left:.25rem; vertical-align:middle; }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+<div class="layout">
+    <header class="nav">
+        <div class="brand"><a href="{% url 'tickets:home' %}">工单系统</a></div>
+        <nav class="nav-links">
+            {% if user.is_authenticated %}
+                <a href="{% url 'tickets:home' %}">工作台</a>
+                <a href="{% url 'tickets:list' %}">工单列表</a>
+                <a href="{% url 'tickets:project_list' %}">项目归档</a>
+                {% if perms_can_create_ticket %}<a href="{% url 'tickets:create' %}">新建工单</a>{% endif %}
+                {% if is_manager %}<a href="{% url 'tickets:stats' %}">统计</a>{% endif %}
+                <a href="{% url 'tickets:notifications' %}">通知{% if unread_notifications_count %}<span class="notif-dot">{{ unread_notifications_count }}</span>{% endif %}</a>
+                <span class="muted">{{ user.username }}</span>
+                <form action="{% url 'logout' %}" method="post" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn secondary" style="padding:0.35rem 0.65rem;font-size:0.9rem;">退出</button>
+                </form>
+            {% else %}
+                <a href="{% url 'login' %}">登录</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+                <li class="{{ message.tags }}">{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+</div>
+</body>
+</html>

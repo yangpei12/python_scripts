@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}统计 · 工单系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .kpi-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:.75rem; margin-bottom:1rem; }
+    .kpi { background:#fff; border:1px solid var(--border); border-radius:10px; padding:1rem; }
+    .kpi .num { font-size:1.5rem; font-weight:700; }
+    .kpi .lbl { color: var(--muted); font-size:.85rem; }
+    .diff-low { color:#065f46; } .diff-medium { color:#92400e; } .diff-high { color:#991b1b; font-weight:700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>统计</h1>
+
+<div class="kpi-grid">
+    <div class="kpi"><div class="num">{{ total_reqs }}</div><div class="lbl">需求条目总数</div></div>
+    <div class="kpi"><div class="num">{{ in_flight_reqs }}</div><div class="lbl">进行中条目</div></div>
+    <div class="kpi"><div class="num" {% if overdue_reqs %}style="color:var(--danger);"{% endif %}>{{ overdue_reqs }}</div><div class="lbl">超期条目</div></div>
+    <div class="kpi"><div class="num">{{ overdue_rate|floatformat:1 }}%</div><div class="lbl">超期率</div></div>
+    <div class="kpi"><div class="num">{% if global_avg %}{{ global_avg|timesince }}{% else %}—{% endif %}</div><div class="lbl">平均处理时长（已关闭）</div></div>
+</div>
+
+<div class="card">
+    <h2>后端人员负载</h2>
+    <p class="muted" style="margin-top:-.25rem;font-size:.85rem;">
+        负载统计的是当前处于"处理中"工单下、状态为"待处理 / 处理中"的需求条数。
+        "加权负载"按难度权重（低=1、中=2、高=3）加总，<strong>自动分派算法选择加权负载最低者</strong>。
+    </p>
+    <table class="list">
+        <thead>
+            <tr>
+                <th>用户名</th>
+                <th>累计分派</th>
+                <th>进行中工单</th>
+                <th>已关闭工单</th>
+                <th title="未完成需求条数">条数合计</th>
+                <th><span class="diff-low">低</span></th>
+                <th><span class="diff-medium">中</span></th>
+                <th><span class="diff-high">高</span></th>
+                <th title="分派算法实际比较的值">加权负载</th>
+                <th>平均处理时长</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for b in backends %}
+                {% for avg in per_backend_avg %}{% if avg.user.id == b.id %}
+                <tr>
+                    <td>{{ b.username }}</td>
+                    <td>{{ b.total_assigned }}</td>
+                    <td>{{ b.active_count }}</td>
+                    <td>{{ b.closed_count }}</td>
+                    <td>{{ b.load_total }}</td>
+                    <td><span class="diff-low">{{ b.load_low }}</span></td>
+                    <td><span class="diff-medium">{{ b.load_medium }}</span></td>
+                    <td><span class="diff-high">{{ b.load_high }}</span></td>
+                    <td><strong>{{ b.load_weighted }}</strong></td>
+                    <td class="muted">{% if avg.avg %}{{ avg.avg|timesince }}{% else %}—{% endif %}</td>
+                </tr>
+                {% endif %}{% endfor %}
+            {% empty %}
+                <tr><td colspan="10" class="muted" style="text-align:center;padding:1rem;">暂无后端账号，请在管理后台将账号加入 backend 分组。</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2>按月已关闭工单数</h2>
+    <table class="list">
+        <thead><tr><th>月份</th><th>处理人</th><th>已关闭工单数</th></tr></thead>
+        <tbody>
+            {% for row in monthly_rows %}
+                <tr>
+                    <td>{{ row.month|date:"Y-m" }}</td>
+                    <td>{{ row.assigned_to__username|default:"—" }}</td>
+                    <td>{{ row.cnt }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="3" class="muted" style="text-align:center;padding:1rem;">暂无已关闭工单</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

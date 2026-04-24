@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}工单列表 · 工单系统{% endblock %}
+
+{% block content %}
+<h1>工单列表</h1>
+
+<form method="get" class="card" style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-end;">
+    <div style="flex:1 1 220px;">
+        <label>关键字</label>
+        <input type="text" name="q" value="{{ q }}" placeholder="项目编号 / 项目名 / 客户 / 需求">
+    </div>
+    <div>
+        <label>状态</label>
+        <select name="status">
+            <option value="">全部</option>
+            {% for val, lbl in status_choices %}
+                <option value="{{ val }}" {% if status == val %}selected{% endif %}>{{ lbl }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label>范围</label>
+        <select name="scope">
+            <option value="" {% if not scope %}selected{% endif %}>与我相关</option>
+            <option value="created" {% if scope == "created" %}selected{% endif %}>我提交的</option>
+            <option value="assigned" {% if scope == "assigned" %}selected{% endif %}>分派给我的</option>
+        </select>
+    </div>
+    <div>
+        <button class="btn" type="submit">筛选</button>
+        <a class="btn secondary" href="{% url 'tickets:list' %}">重置</a>
+    </div>
+</form>
+
+<div class="card">
+    <table class="list">
+        <thead>
+            <tr>
+                <th>项目编号</th>
+                <th>项目名称</th>
+                <th>客户</th>
+                <th>状态</th>
+                <th>需求</th>
+                <th>提单人</th>
+                <th>处理人</th>
+                <th>创建时间</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tickets %}
+                <tr>
+                    <td><a href="{{ t.get_absolute_url }}">{{ t.project_no }}</a></td>
+                    <td>{{ t.project_name }}</td>
+                    <td>{{ t.client_name|default:"—" }}</td>
+                    <td>
+                        <span class="badge">{{ t.get_status_display }}</span>
+                        {% if t.has_overdue_requirement %}<span class="badge" style="background:#fef2f2;color:#991b1b;border-color:#fecaca;">超期</span>{% endif %}
+                    </td>
+                    <td class="muted">{{ t.requirements.count }} 条</td>
+                    <td>{{ t.created_by.username }}</td>
+                    <td>{{ t.assigned_to.username|default:"—" }}</td>
+                    <td class="muted">{{ t.created_at|date:"Y-m-d H:i" }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="8" class="muted" style="text-align:center;padding:1.5rem;">暂无工单</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+# 版本控制与编辑器
+.git
+.gitignore
+.vscode
+.idea
+.cursor
+.DS_Store
+
+# Python 缓存
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.venv
+venv
+env
+
+# 本地数据 —— 一定不能进镜像
+db.sqlite3
+db.sqlite3-journal
+db-*.sqlite3*
+media/
+
+# 构建产物
+staticfiles/
+build/
+dist/
+
+# 测试
+.pytest_cache
+.tox
+.coverage
+htmlcov
+
+# 同步工具产物
+*NSConflict*
+*.swp

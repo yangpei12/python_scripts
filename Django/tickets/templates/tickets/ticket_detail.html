@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}{{ ticket.project_no }} · 工单系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .meta-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:.75rem 1.25rem; }
+    .meta-grid .k { color: var(--muted); font-size: .85rem; }
+    .meta-grid .v { font-weight: 600; }
+    .status-pill { padding:.2rem .6rem; border-radius:999px; font-size:.85rem; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; display:inline-block; }
+    .status-pill.pending { background:#fef9c3; color:#854d0e; border-color:#fde68a; }
+    .status-pill.closed { background:#f3f4f6; color:#374151; border-color:#e5e7eb; }
+    .status-pill.overdue { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
+    .req { padding: .75rem; border:1px solid var(--border); border-radius:10px; margin-bottom:.6rem; background:#fff; }
+    .req.done { opacity:.75; }
+    .req .head { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; }
+    .req .detail { color: var(--muted); font-size:.9rem; margin-top:.35rem; white-space: pre-wrap; }
+    .req .meta { color: var(--muted); font-size:.85rem; margin-top:.35rem; display:flex; gap:.75rem; flex-wrap:wrap; }
+    .diff-low { color:#065f46; } .diff-medium { color:#92400e; } .diff-high { color:#991b1b; font-weight:700; }
+    .attach-group { display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .attach-group .card { margin-bottom:0; }
+    .comment { border-left:3px solid var(--border); padding:.35rem .75rem; margin-bottom:.6rem; }
+    .comment.reject { border-left-color: var(--danger); background:#fef2f2; }
+    .comment .who { font-weight:600; } .comment .when { color: var(--muted); font-size:.8rem; margin-left:.5rem; }
+    .timeline { list-style:none; padding:0; margin:0; }
+    .timeline li { padding:.3rem 0; border-bottom:1px dashed var(--border); font-size:.9rem; color: var(--muted); }
+    .timeline li:last-child { border-bottom:none; }
+    .timeline strong { color: var(--text); }
+    @media (max-width: 720px) { .attach-group { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% with ticket.status as st %}
+<div class="card">
+    <div class="row" style="justify-content:space-between;align-items:flex-start;">
+        <div>
+            <h1 style="margin:0 0 .25rem;">{{ ticket.project_no }} · {{ ticket.project_name }}</h1>
+            <span class="status-pill {% if st == 'pending_feedback' %}pending{% elif st == 'closed' %}closed{% endif %}">
+                {{ ticket.get_status_display }}
+            </span>
+            {% if ticket.has_overdue_requirement %}<span class="status-pill overdue">存在超期需求</span>{% endif %}
+        </div>
+        <div class="row">
+            {% if can_submit_for_review %}
+                <form method="post" action="{% url 'tickets:submit_for_review' ticket.pk %}">{% csrf_token %}<button class="btn" type="submit">提交待前端确认</button></form>
+            {% endif %}
+            {% if can_close %}
+                <form method="post" action="{% url 'tickets:close' ticket.pk %}" onsubmit="return confirm('确认该工单结果无误，关闭工单？');">{% csrf_token %}<button class="btn" type="submit">确认并关闭</button></form>
+            {% endif %}
+            {% if can_reopen %}
+                <form method="post" action="{% url 'tickets:reopen' ticket.pk %}">{% csrf_token %}<button class="btn secondary" type="submit">重新打开</button></form>
+            {% endif %}
+        </div>
+    </div>
+
+    <hr class="sep">
+    <div class="meta-grid">
+        <div><div class="k">客户</div><div class="v">{{ ticket.client_name|default:"—" }}</div></div>
+        <div><div class="k">提单人</div><div class="v">{{ ticket.created_by.username }}</div></div>
+        <div><div class="k">当前处理人</div><div class="v">{{ ticket.assigned_to.username|default:"—" }}</div></div>
+        <div><div class="k">创建时间</div><div class="v">{{ ticket.created_at|date:"Y-m-d H:i" }}</div></div>
+        <div><div class="k">指派时间</div><div class="v">{{ ticket.assigned_at|date:"Y-m-d H:i"|default:"—" }}</div></div>
+        {% if ticket.submitted_for_review_at %}<div><div class="k">提交待确认</div><div class="v">{{ ticket.submitted_for_review_at|date:"Y-m-d H:i" }}</div></div>{% endif %}
+        {% if ticket.closed_at %}<div><div class="k">关闭时间</div><div class="v">{{ ticket.closed_at|date:"Y-m-d H:i" }}</div></div>{% endif %}
+    </div>
+    {% if ticket.description %}
+        <hr class="sep">
+        <div class="muted" style="font-size:.85rem;margin-bottom:.25rem;">项目备注</div>
+        <div style="white-space:pre-wrap;">{{ ticket.description }}</div>
+    {% endif %}
+</div>
+{% endwith %}
+
+<div class="card">
+    <h2>需求条目（{{ requirements|length }}）</h2>
+    {% for r in requirements %}
+        <div class="req {% if r.is_finished %}done{% endif %}" id="req-{{ r.pk }}">
+            <div class="head">
+                <div>
+                    <strong>{{ r.title }}</strong>
+                    <span class="muted" style="font-size:.8rem;margin-left:.5rem;">难度：<span class="diff-{{ r.difficulty }}">{{ r.get_difficulty_display }}</span></span>
+                </div>
+                <div class="row">
+                    {# 后端已完成：DONE / ACCEPTED 都意味着后端已交付 #}
+                    {% if r.status == 'done' or r.status == 'accepted' %}
+                        <span class="badge" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">后端已完成</span>
+                    {% endif %}
+                    {# 前端已确认：仅在 ACCEPTED 时附加 #}
+                    {% if r.status == 'accepted' %}
+                        <span class="badge" style="background:#ecfdf3;color:#166534;border-color:#bbf7d0;">前端已确认</span>
+                    {% endif %}
+                    {% if r.status == 'rejected' %}
+                        <span class="badge" style="background:#fef2f2;color:#991b1b;border-color:#fecaca;">被打回</span>
+                    {% endif %}
+                    {% if r.status == 'pending' or r.status == 'doing' %}
+                        <span class="badge">{{ r.get_status_display }}</span>
+                    {% endif %}
+                    {% if r.is_overdue %}<span class="status-pill overdue">超期</span>{% endif %}
+
+                    {# 后端操作：标记完成 / 撤销完成 #}
+                    {% if can_handle %}
+                        {% if r.status == 'done' %}
+                            <form method="post" action="{% url 'tickets:requirement_reopen' ticket.pk r.pk %}">{% csrf_token %}<button class="btn secondary" type="submit">撤销完成</button></form>
+                        {% elif r.status == 'rejected' %}
+                            <form method="post" action="{% url 'tickets:requirement_reopen' ticket.pk r.pk %}">{% csrf_token %}<button class="btn secondary" type="submit">重新处理</button></form>
+                        {% elif r.status != 'accepted' %}
+                            <form method="post" action="{% url 'tickets:requirement_done' ticket.pk r.pk %}">{% csrf_token %}<button class="btn" type="submit">标记完成</button></form>
+                        {% endif %}
+                    {% endif %}
+
+                    {# 前端操作：确认接收 / 打回 #}
+                    {% if r.can_confirm %}
+                        <form method="post" action="{% url 'tickets:requirement_accept' ticket.pk r.pk %}">{% csrf_token %}<button class="btn" type="submit" style="background:#16a34a;">确认接收</button></form>
+                        <form method="post" action="{% url 'tickets:requirement_send_back' ticket.pk r.pk %}" onsubmit="return confirm('确认打回该需求让后端重新处理？');">{% csrf_token %}<button class="btn danger" type="submit">打回重做</button></form>
+                    {% endif %}
+                </div>
+            </div>
+            {% if r.detail %}<div class="detail">{{ r.detail }}</div>{% endif %}
+            <div class="meta">
+                <span>期望完成：{{ r.due_at|date:"Y-m-d H:i" }}</span>
+                {% if r.done_at %}<span>后端完成：{{ r.done_at|date:"Y-m-d H:i" }}</span>{% endif %}
+                {% if r.accepted_at %}<span>前端确认：{{ r.accepted_at|date:"Y-m-d H:i" }}</span>{% endif %}
+                <span>创建于：{{ r.created_at|date:"Y-m-d H:i" }}</span>
+            </div>
+
+            {# 交付结果：每条需求独立展示 #}
+            <div style="margin-top:.75rem;padding-top:.65rem;border-top:1px dashed var(--border);">
+                <div class="muted" style="font-size:.8rem;font-weight:600;margin-bottom:.35rem;">交付结果</div>
+                {% for att in r.deliverables %}
+                    <div class="row" style="justify-content:space-between;padding:.2rem 0;">
+                        <a href="{% url 'tickets:attachment_download' ticket.pk att.pk %}">{{ att.original_name }}</a>
+                        <span class="muted" style="font-size:.8rem;">{{ att.uploaded_by.username }} · {{ att.uploaded_at|date:"Y-m-d H:i" }}</span>
+                    </div>
+                {% empty %}
+                    <div class="muted" style="font-size:.85rem;">暂无交付文件</div>
+                {% endfor %}
+                {% if can_upload_deliverable %}
+                <form method="post" action="{% url 'tickets:requirement_attachment_upload' ticket.pk r.pk %}" enctype="multipart/form-data" style="margin-top:.5rem;">
+                    {% csrf_token %}
+                    <input type="hidden" name="kind" value="deliverable">
+                    <div class="row" style="align-items:center;gap:.5rem;">
+                        <input type="file" name="file" required style="flex:1;font-size:.85rem;">
+                        <button class="btn" type="submit" style="padding:.3rem .7rem;font-size:.85rem;">上传交付结果</button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<a id="attachments"></a>
+<div class="card">
+    <h2>客户输入资料</h2>
+    {% for a in inputs %}
+        <div class="row" style="justify-content:space-between;padding:.35rem 0;border-bottom:1px dashed var(--border);">
+            <a href="{% url 'tickets:attachment_download' ticket.pk a.pk %}">{{ a.original_name }}</a>
+            <span class="muted" style="font-size:.85rem;">{{ a.uploaded_by.username }} · {{ a.uploaded_at|date:"Y-m-d H:i" }}</span>
+        </div>
+    {% empty %}<div class="muted">暂无</div>{% endfor %}
+    {% if can_upload_input %}
+    <form method="post" action="{% url 'tickets:attachment_upload' ticket.pk %}" enctype="multipart/form-data" style="margin-top:.75rem;">
+        {% csrf_token %}
+        <input type="hidden" name="kind" value="input">
+        <div class="row" style="align-items:center;gap:.5rem;">
+            <input type="file" name="file" required style="flex:1;font-size:.85rem;">
+            <button class="btn secondary" type="submit" style="padding:.3rem .7rem;font-size:.85rem;">上传客户资料</button>
+        </div>
+        <div class="muted" style="font-size:.8rem;margin-top:.35rem;">单文件不超过 100MB。</div>
+    </form>
+    {% endif %}
+</div>
+
+<a id="comments"></a>
+<div class="card">
+    <h2>沟通记录</h2>
+    {% for c in comments %}
+        <div class="comment {% if c.is_reject_reason %}reject{% endif %}">
+            <div><span class="who">{{ c.author.username }}</span><span class="when">{{ c.created_at|date:"Y-m-d H:i" }}</span>{% if c.is_reject_reason %} <span class="badge" style="background:#fef2f2;color:#991b1b;border-color:#fecaca;">打回原因</span>{% endif %}</div>
+            <div style="white-space:pre-wrap;">{{ c.body }}</div>
+        </div>
+    {% empty %}<div class="muted">暂无评论</div>{% endfor %}
+
+    {% if comment_form %}
+    <hr class="sep">
+    <form method="post" action="{% url 'tickets:comment_create' ticket.pk %}">
+        {% csrf_token %}
+        {{ comment_form.body }}
+        <div style="margin-top:.5rem;"><button class="btn" type="submit">发表评论</button></div>
+    </form>
+    {% endif %}
+
+    {% if reject_form %}
+    <hr class="sep">
+    <h2 style="color:var(--danger);">打回重做</h2>
+    <form method="post" action="{% url 'tickets:reject' ticket.pk %}">
+        {% csrf_token %}
+        {{ reject_form.reason }}
+        {% if reject_form.reason.errors %}<ul class="errorlist">{% for e in reject_form.reason.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+        <div style="margin-top:.5rem;"><button class="btn danger" type="submit" onclick="return confirm('确认打回给后端重新处理？');">打回重做</button></div>
+    </form>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>时间线</h2>
+    <ul class="timeline">
+        {% for e in events %}
+            <li>
+                <span class="muted">{{ e.created_at|date:"m-d H:i" }}</span>
+                <strong>{{ e.actor.username|default:"系统" }}</strong>
+                {{ e.get_kind_display }}
+                {% if e.message %}— {{ e.message }}{% endif %}
+            </li>
+        {% empty %}<li class="muted">—</li>{% endfor %}
+    </ul>
+</div>
+
+{% endblock %}

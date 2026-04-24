@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}{{ project_no }} · 项目归档{% endblock %}
+
+{% block extra_css %}
+<style>
+    .summary-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:1rem; }
+    .summary-grid .cell { background:#fff; border:1px solid var(--border); border-radius:10px; padding:.75rem 1rem; }
+    .summary-grid .k { color: var(--muted); font-size:.8rem; }
+    .summary-grid .v { font-size:1.4rem; font-weight:700; font-variant-numeric: tabular-nums; }
+    .req-row { padding:.6rem 0; border-bottom:1px dashed var(--border); }
+    .req-row:last-child { border-bottom:none; }
+    .req-row .meta { color: var(--muted); font-size:.85rem; margin-top:.25rem; }
+    .req-row .badges { display:flex; gap:.35rem; flex-wrap:wrap; }
+    .ticket-row { padding:.5rem 0; border-bottom:1px dashed var(--border); display:flex; justify-content:space-between; align-items:center; gap:.5rem; flex-wrap:wrap; }
+    .ticket-row:last-child { border-bottom:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="card">
+    <div class="row" style="justify-content:space-between;align-items:flex-start;">
+        <div>
+            <h1 style="margin:0 0 .25rem;">{{ project_no }}</h1>
+            <div class="muted">{{ project_name|default:"—" }} · 客户：{{ client_name|default:"—" }}</div>
+            {% if name_variants|length > 1 %}
+            <div class="muted" style="font-size:.8rem;margin-top:.35rem;">
+                ⚠ 多次填报的项目名不一致：{% for n in name_variants %}<span class="badge">{{ n }}</span>{% if not forloop.last %} {% endif %}{% endfor %}
+            </div>
+            {% endif %}
+            {% if client_variants|length > 1 %}
+            <div class="muted" style="font-size:.8rem;margin-top:.25rem;">
+                ⚠ 客户名不一致：{% for c in client_variants %}<span class="badge">{{ c }}</span>{% if not forloop.last %} {% endif %}{% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        <div class="row">
+            {% if can_create_more %}
+            <a class="btn" href="{% url 'tickets:create' %}?project_no={{ project_no }}">在该项目下新建工单</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <hr class="sep">
+    <div class="summary-grid">
+        <div class="cell"><div class="k">工单数</div><div class="v">{{ tickets|length }}</div></div>
+        <div class="cell"><div class="k">需求总数</div><div class="v">{{ total_reqs }}</div></div>
+        <div class="cell"><div class="k">已确认</div><div class="v" style="color:#166534;">{{ accepted_reqs }}</div></div>
+        <div class="cell"><div class="k">后端已完成 待确认</div><div class="v" style="color:#1d4ed8;">{{ done_reqs }}</div></div>
+        <div class="cell"><div class="k">进行中 / 被打回</div><div class="v" style="color:#854d0e;">{{ inflight_reqs }}</div></div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>本项目下全部工单（{{ tickets|length }}）</h2>
+    {% if active_tickets %}
+        <div class="muted" style="font-size:.85rem;margin:.25rem 0;">活跃中</div>
+        {% for t in active_tickets %}
+        <div class="ticket-row">
+            <div>
+                <div><a href="{{ t.get_absolute_url }}"><strong>{{ t.project_no }}</strong></a> · {{ t.project_name }}</div>
+                <div class="muted" style="font-size:.85rem;">提单 {{ t.created_by.username }} · 处理 {{ t.assigned_to.username|default:"—" }} · {{ t.created_at|date:"Y-m-d H:i" }}</div>
+            </div>
+            <span class="badge" style="background:#fef9c3;color:#854d0e;border-color:#fde68a;">{{ t.get_status_display }}</span>
+        </div>
+        {% endfor %}
+    {% endif %}
+    {% if closed_tickets %}
+        <div class="muted" style="font-size:.85rem;margin:.5rem 0 .25rem;">已关闭</div>
+        {% for t in closed_tickets %}
+        <div class="ticket-row">
+            <div>
+                <div><a href="{{ t.get_absolute_url }}"><strong>{{ t.project_no }}</strong></a> · {{ t.project_name }}</div>
+                <div class="muted" style="font-size:.85rem;">提单 {{ t.created_by.username }} · 处理 {{ t.assigned_to.username|default:"—" }} · 关闭于 {{ t.closed_at|date:"Y-m-d H:i" }}</div>
+            </div>
+            <span class="badge">已关闭</span>
+        </div>
+        {% endfor %}
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>跨工单需求条目（{{ total_reqs }}）</h2>
+    <p class="muted" style="margin-top:-.25rem;font-size:.85rem;">按创建时间倒序，所有归并到该项目下的需求一条不漏。</p>
+    {% for r in requirements %}
+    <div class="req-row" id="req-{{ r.pk }}">
+        <div class="row" style="justify-content:space-between;align-items:flex-start;">
+            <div style="flex:1;min-width:260px;">
+                <div><strong>{{ r.title }}</strong> <span class="muted" style="font-size:.8rem;">· 难度 {{ r.get_difficulty_display }}</span></div>
+                {% if r.detail %}<div class="muted" style="font-size:.85rem;margin-top:.2rem;white-space:pre-wrap;">{{ r.detail }}</div>{% endif %}
+                <div class="meta">
+                    所属工单 <a href="{{ r.ticket.get_absolute_url }}">{{ r.ticket.project_no }}</a> ·
+                    创建于 {{ r.created_at|date:"Y-m-d H:i" }} ·
+                    期望 {{ r.due_at|date:"Y-m-d H:i" }}
+                    {% if r.done_at %} · 后端完成 {{ r.done_at|date:"Y-m-d H:i" }}{% endif %}
+                    {% if r.accepted_at %} · 前端确认 {{ r.accepted_at|date:"Y-m-d H:i" }}{% endif %}
+                </div>
+            </div>
+            <div class="badges">
+                {% if r.status == 'done' or r.status == 'accepted' %}
+                    <span class="badge" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">后端已完成</span>
+                {% endif %}
+                {% if r.status == 'accepted' %}
+                    <span class="badge" style="background:#ecfdf3;color:#166534;border-color:#bbf7d0;">前端已确认</span>
+                {% endif %}
+                {% if r.status == 'rejected' %}
+                    <span class="badge" style="background:#fef2f2;color:#991b1b;border-color:#fecaca;">被打回</span>
+                {% endif %}
+                {% if r.status == 'pending' or r.status == 'doing' %}
+                    <span class="badge">{{ r.get_status_display }}</span>
+                {% endif %}
+                {% if r.is_overdue %}<span class="badge" style="background:#fef2f2;color:#991b1b;border-color:#fecaca;">超期</span>{% endif %}
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="muted">该项目下暂无需求条目。</div>
+    {% endfor %}
+</div>
+
+{% endblock %}

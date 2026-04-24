@@ -1,0 +1,36 @@
+services:
+  web:
+    build:
+      context: .
+    image: workorder:latest
+    container_name: workorder
+    restart: unless-stopped
+    # 把 8000 端口发布到宿主 8080；如冲突自行改左侧
+    ports:
+      - "8080:8000"
+    environment:
+      # 必填，部署前请生成后写入 .env 或此处覆盖
+      WORKORDER_SECRET_KEY: "${WORKORDER_SECRET_KEY:?please set WORKORDER_SECRET_KEY in .env}"
+      WORKORDER_DEBUG: "0"
+      WORKORDER_ALLOWED_HOSTS: "${WORKORDER_ALLOWED_HOSTS:-localhost,127.0.0.1}"
+      WORKORDER_CSRF_TRUSTED_ORIGINS: "${WORKORDER_CSRF_TRUSTED_ORIGINS:-}"
+      # gunicorn
+      WORKORDER_WORKERS: "${WORKORDER_WORKERS:-3}"
+      WORKORDER_TIMEOUT: "${WORKORDER_TIMEOUT:-120}"
+      # 可选：首次启动自动创建超级管理员
+      DJANGO_SUPERUSER_USERNAME: "${DJANGO_SUPERUSER_USERNAME:-}"
+      DJANGO_SUPERUSER_PASSWORD: "${DJANGO_SUPERUSER_PASSWORD:-}"
+      DJANGO_SUPERUSER_EMAIL: "${DJANGO_SUPERUSER_EMAIL:-}"
+    volumes:
+      - workorder_db:/data/db
+      - workorder_media:/data/media
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8000/accounts/login/', timeout=3); sys.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  workorder_db:
+  workorder_media:

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}新建工单 · 工单系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .req-rows { border-collapse: collapse; width: 100%; }
+    .req-rows th, .req-rows td { padding: .4rem .35rem; vertical-align: top; border-bottom: 1px solid var(--border); }
+    .req-rows th { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; text-align: left; }
+    .req-rows input, .req-rows select, .req-rows textarea { padding: .35rem .5rem; }
+    .req-rows .col-del { width: 60px; text-align: center; }
+    .req-rows .col-title { min-width: 180px; }
+    .req-rows .col-detail { min-width: 220px; }
+    .req-rows .col-due { min-width: 180px; }
+    #add-req { margin-top: .75rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>新建工单</h1>
+
+<form method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="card">
+        <h2>项目信息</h2>
+        {% if existing_project_ticket_count %}
+        <div class="messages" style="margin-bottom:.75rem;">
+            <div style="padding:.65rem .85rem;border-radius:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">
+                项目编号 <strong>{{ sniff_project_no }}</strong> 已存在 {{ existing_project_ticket_count }} 个历史工单，
+                提交后将自动归并到该项目。
+                <a href="{% url 'tickets:project_detail' sniff_project_no %}">查看项目归档 →</a>
+            </div>
+        </div>
+        {% endif %}
+        {% for f in form %}
+            <div>
+                <label for="{{ f.id_for_label }}">{{ f.label }}{% if f.field.required %} *{% endif %}</label>
+                {{ f }}
+                {% if f.errors %}<ul class="errorlist">{% for e in f.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+                {% if f.help_text %}<div class="muted" style="font-size:.85rem;margin-top:.25rem;">{{ f.help_text }}</div>{% endif %}
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="card">
+        <h2>需求条目</h2>
+        <p class="muted" style="margin-top:-.25rem;">每条需求独立设置难度和期望完成时间。系统按 2 天 SLA 判定超期。</p>
+
+        {{ formset.management_form }}
+        {% if formset.non_form_errors %}<ul class="errorlist">{% for e in formset.non_form_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+
+        <table class="req-rows" id="req-table">
+            <thead>
+                <tr>
+                    <th class="col-title">标题 *</th>
+                    <th class="col-detail">详情</th>
+                    <th>难度 *</th>
+                    <th class="col-due">期望完成时间 *</th>
+                    <th class="col-del">删除</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rf in formset %}
+                <tr class="req-row">
+                    {{ rf.id }}
+                    {{ rf.order }}
+                    <td>{{ rf.title }}{% if rf.title.errors %}<ul class="errorlist">{% for e in rf.title.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}</td>
+                    <td>{{ rf.detail }}{% if rf.detail.errors %}<ul class="errorlist">{% for e in rf.detail.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}</td>
+                    <td>{{ rf.difficulty }}{% if rf.difficulty.errors %}<ul class="errorlist">{% for e in rf.difficulty.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}</td>
+                    <td>{{ rf.due_at }}{% if rf.due_at.errors %}<ul class="errorlist">{% for e in rf.due_at.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}</td>
+                    <td class="col-del">{% if rf.DELETE %}{{ rf.DELETE }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <button type="button" id="add-req" class="btn secondary">+ 再加一条需求</button>
+    </div>
+
+    <div class="row" style="margin-top:1rem;">
+        <button type="submit" class="btn">提交工单</button>
+        <a class="btn secondary" href="{% url 'tickets:list' %}">取消</a>
+    </div>
+</form>
+
+<template id="req-row-tpl">
+    <tr class="req-row">
+        {# 占位，JS 会克隆最后一行生成新行 #}
+    </tr>
+</template>
+
+<script>
+(function () {
+    const totalForms = document.querySelector('input[name="requirements-TOTAL_FORMS"]');
+    const table = document.querySelector('#req-table tbody');
+    const addBtn = document.getElementById('add-req');
+
+    addBtn.addEventListener('click', function () {
+        const idx = parseInt(totalForms.value, 10);
+        const firstRow = table.querySelector('.req-row');
+        const newRow = firstRow.cloneNode(true);
+        // 清空所有 input/textarea/select 的值，并把 name/id 里的 0 替换为新索引
+        newRow.querySelectorAll('input, select, textarea').forEach(function (el) {
+            if (el.name) el.name = el.name.replace(/requirements-\d+-/, 'requirements-' + idx + '-');
+            if (el.id) el.id = el.id.replace(/id_requirements-\d+-/, 'id_requirements-' + idx + '-');
+            if (el.type === 'checkbox') el.checked = false;
+            else if (el.tagName === 'SELECT') el.selectedIndex = 0;
+            else el.value = '';
+        });
+        // 清空任何 errorlist
+        newRow.querySelectorAll('.errorlist').forEach(function (el) { el.remove(); });
+        table.appendChild(newRow);
+        totalForms.value = idx + 1;
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}工作台 · 工单系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .grid-2 { display:grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap:1rem; }
+    .grid-2 .card { margin-bottom:0; }
+    .stat-row { display:flex; justify-content:space-between; padding:.4rem 0; border-bottom:1px dashed var(--border); }
+    .stat-row:last-child { border-bottom:none; }
+    .stat-row .title { font-weight:600; }
+    .stat-row .sub { color: var(--muted); font-size:.85rem; }
+    .empty { color: var(--muted); padding:.35rem 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>工作台</h1>
+<p class="muted">欢迎，{{ user.username }}{% if is_frontend %}（前端）{% elif is_backend %}（后端）{% elif is_manager %}（管理员）{% endif %}。</p>
+
+<div class="grid-2">
+    {% if is_backend or is_manager %}
+    <div class="card">
+        <h2>我的待办 <span class="muted" style="font-weight:normal;font-size:.85rem;">（分派给我且处理中的工单）</span></h2>
+        {% for t in my_todo %}
+            <div class="stat-row">
+                <div>
+                    <div class="title"><a href="{{ t.get_absolute_url }}">{{ t.project_no }}</a> · {{ t.project_name }}</div>
+                    <div class="sub">{{ t.requirements.count }} 个需求 · 提单人 {{ t.created_by.username }} · {{ t.assigned_at|date:"m-d H:i" }} 起</div>
+                </div>
+                <span class="badge">{{ t.get_status_display }}</span>
+            </div>
+        {% empty %}<div class="empty">暂无待办</div>{% endfor %}
+    </div>
+    {% endif %}
+
+    {% if is_frontend or is_manager %}
+    <div class="card">
+        <h2>等待我关闭 <span class="muted" style="font-weight:normal;font-size:.85rem;">（所有需求已确认，等我关闭工单）</span></h2>
+        {% for t in my_to_close %}
+            <div class="stat-row">
+                <div>
+                    <div class="title"><a href="{{ t.get_absolute_url }}">{{ t.project_no }}</a> · {{ t.project_name }}</div>
+                    <div class="sub">处理人 {{ t.assigned_to.username }} · 共 {{ t.total_req_count }} 条已全部确认</div>
+                </div>
+                <span class="badge" style="background:#ecfdf3;color:#166534;border-color:#bbf7d0;">可关闭</span>
+            </div>
+        {% empty %}<div class="empty">暂无</div>{% endfor %}
+    </div>
+
+    <div class="card">
+        <h2>待我确认 <span class="muted" style="font-weight:normal;font-size:.85rem;">（后端已提交，等我确认）</span></h2>
+        {% for t in my_review %}
+            <div class="stat-row">
+                <div>
+                    <div class="title"><a href="{{ t.get_absolute_url }}">{{ t.project_no }}</a> · {{ t.project_name }}</div>
+                    <div class="sub">处理人 {{ t.assigned_to.username }} · {{ t.pending_review_count }} / {{ t.total_req_count }} 条待确认</div>
+                </div>
+                <span class="badge" style="background:#fef9c3;color:#854d0e;border-color:#fde68a;">{{ t.get_status_display }}</span>
+            </div>
+        {% empty %}<div class="empty">暂无待确认工单</div>{% endfor %}
+    </div>
+
+    <div class="card">
+        <h2>我提交的进行中</h2>
+        {% for t in my_created_active %}
+            <div class="stat-row">
+                <div>
+                    <div class="title"><a href="{{ t.get_absolute_url }}">{{ t.project_no }}</a> · {{ t.project_name }}</div>
+                    <div class="sub">处理人 {{ t.assigned_to.username|default:"未分派" }} · 状态 {{ t.get_status_display }}</div>
+                </div>
+                {% if t.has_overdue_requirement %}<span class="badge" style="background:#fef2f2;color:#991b1b;border-color:#fecaca;">超期</span>{% endif %}
+            </div>
+        {% empty %}<div class="empty">暂无</div>{% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <h2>超期预警 <span class="muted" style="font-weight:normal;font-size:.85rem;">（创建超过 2 天仍未完成）</span></h2>
+        {% for r in overdue_reqs %}
+            <div class="stat-row">
+                <div>
+                    <div class="title"><a href="{{ r.ticket.get_absolute_url }}">{{ r.ticket.project_no }}</a> / {{ r.title }}</div>
+                    <div class="sub">状态 {{ r.get_status_display }} · 创建于 {{ r.created_at|date:"Y-m-d H:i" }} · 处理人 {{ r.ticket.assigned_to.username|default:"—" }}</div>
+                </div>
+                <span class="badge" style="background:#fef2f2;color:#991b1b;border-color:#fecaca;">超期</span>
+            </div>
+        {% empty %}<div class="empty">无超期条目</div>{% endfor %}
+    </div>
+
+    <div class="card">
+        <h2>最近通知 <a style="font-size:.85rem;font-weight:normal;margin-left:.5rem;" href="{% url 'tickets:notifications' %}">全部 →</a></h2>
+        {% for n in recent_notifs %}
+            <div class="stat-row">
+                <div>
+                    <div class="title" style="{% if n.is_read %}color:var(--muted);{% endif %}">{{ n.text }}</div>
+                    <div class="sub">{{ n.created_at|date:"m-d H:i" }}</div>
+                </div>
+                {% if not n.is_read %}<span class="badge" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;">未读</span>{% endif %}
+            </div>
+        {% empty %}<div class="empty">暂无通知</div>{% endfor %}
+    </div>
+</div>
+{% endblock %}

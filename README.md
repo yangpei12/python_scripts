@@ -16,6 +16,8 @@ git commit -m "update: 推送最新的 Python 代码"
 # 如果远程已经有代码，先拉取合并一下
 git pull origin master --rebase
 # 推送
-git push -u origin master
+git push -u origin main:master
 # 拉取
 git pull origin master --rebase
+
+

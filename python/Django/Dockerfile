@@ -12,12 +12,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # 基础工具：sqlite3 客户端留作备份/手动排障用
-RUN apt-get update \
+# 国内网络环境下 deb.debian.org 经常被代理拦/502，直接换清华源，和代理无关
+RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org/debian-security|mirrors.tuna.tsinghua.edu.cn/debian-security|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
     && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --prefix=/install -r requirements.txt
+RUN pip install --index-url https://pypi.tuna.tsinghua.edu.cn/simple --prefix=/install -r requirements.txt
 
 # =========== Stage 2: 运行镜像 ===========
 FROM python:3.12-slim
@@ -30,7 +32,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     WORKORDER_STATIC_ROOT=/app/staticfiles \
     WORKORDER_MEDIA_ROOT=/data/media
 
-RUN apt-get update \
+RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org/debian-security|mirrors.tuna.tsinghua.edu.cn/debian-security|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
     && apt-get install -y --no-install-recommends sqlite3 tini \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 1000 app \

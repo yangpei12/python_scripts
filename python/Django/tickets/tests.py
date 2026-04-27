@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -253,6 +253,86 @@ class PermissionTests(TestCase):
         self.client.force_login(mgr)
         resp = self.client.get(reverse("tickets:stats"))
         self.assertEqual(resp.status_code, 200)
+
+
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
+)
+class SplitSessionTests(TestCase):
+    def setUp(self):
+        ensure_groups()
+        self.frontend = _mk_user("frontend_u", GROUP_FRONTEND)
+        self.admin = User.objects.create_superuser(
+            username="admin_u",
+            email="admin@example.com",
+            password="pw12345678",
+        )
+
+    def _login_frontend(self):
+        resp = self.client.post(
+            reverse("login"),
+            {"username": self.frontend.username, "password": "pw12345678"},
+        )
+        self.assertEqual(resp.status_code, 302)
+
+    def _login_admin(self):
+        resp = self.client.post(
+            "/admin/login/?next=/admin/",
+            {
+                "username": self.admin.username,
+                "password": "pw12345678",
+                "next": "/admin/",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+
+    def test_frontend_and_admin_can_login_in_one_browser(self):
+        self._login_frontend()
+        self.assertIsNotNone(self.client.cookies.get("sessionid"))
+
+        self._login_admin()
+        self.assertIsNotNone(self.client.cookies.get("admin_sessionid"))
+
+        frontend_resp = self.client.get("/")
+        self.assertTrue(frontend_resp.wsgi_request.user.is_authenticated)
+        self.assertEqual(frontend_resp.wsgi_request.user.username, self.frontend.username)
+
+        admin_resp = self.client.get("/admin/")
+        self.assertEqual(admin_resp.status_code, 200)
+        self.assertTrue(admin_resp.wsgi_request.user.is_authenticated)
+        self.assertEqual(admin_resp.wsgi_request.user.username, self.admin.username)
+
+    def test_frontend_logout_does_not_affect_admin_login(self):
+        self._login_frontend()
+        self._login_admin()
+
+        resp = self.client.post(reverse("logout"))
+        self.assertEqual(resp.status_code, 302)
+
+        frontend_resp = self.client.get("/")
+        self.assertFalse(frontend_resp.wsgi_request.user.is_authenticated)
+
+        admin_resp = self.client.get("/admin/")
+        self.assertEqual(admin_resp.status_code, 200)
+        self.assertTrue(admin_resp.wsgi_request.user.is_authenticated)
+        self.assertEqual(admin_resp.wsgi_request.user.username, self.admin.username)
+
+    def test_admin_logout_does_not_affect_frontend_login(self):
+        self._login_frontend()
+        self._login_admin()
+
+        resp = self.client.post("/admin/logout/")
+        self.assertEqual(resp.status_code, 302)
+
+        admin_resp = self.client.get("/admin/")
+        self.assertEqual(admin_resp.status_code, 302)
+
+        frontend_resp = self.client.get("/")
+        self.assertTrue(frontend_resp.wsgi_request.user.is_authenticated)
+        self.assertEqual(frontend_resp.wsgi_request.user.username, self.frontend.username)
 
 
 class OverdueTests(TestCase):

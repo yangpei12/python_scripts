@@ -64,7 +64,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     # WhiteNoise 紧跟在 SecurityMiddleware 之后，负责生产环境直接发布静态文件
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
+    "workorder.middleware.SplitSessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -133,6 +133,10 @@ LOGIN_REDIRECT_URL = reverse_lazy("tickets:home")
 LOGOUT_REDIRECT_URL = reverse_lazy("login")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# 我们使用自定义的 SplitSessionMiddleware 来替代默认 SessionMiddleware。
+# admin 的系统检查只按字符串判断，故静默该项检查。
+SILENCED_SYSTEM_CHECKS = ["admin.E410"]
 
 # 简单日志配置：生产环境把 WARNING 以上写到 stderr，由 systemd journal 统一收集
 LOGGING = {

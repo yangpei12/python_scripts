@@ -4,7 +4,8 @@ cd path/to/your/r_folder  # 替换成你电脑上 R 文件夹的真实路径
 git init
 
 # 关联python远程仓库
-git remote add origin https://ghp_BbfeqI0bhiU0ODGvD0EpYXlcYiGajH1p6kU7@github.com/yangpei12/python_scripts.git
+# git remote add origin https://ghp_BbfeqI0bhiU0ODGvD0EpYXlcYiGajH1p6kU7@github.com/yangpei12/python_scripts.git
+git remote set-url origin https://github.com/yangpei12/python_scripts.git
 
 # 关联R远程仓库
 git remote add origin https://ghp_BbfeqI0bhiU0ODGvD0EpYXlcYiGajH1p6kU7@github.com/yangpei12/R_scripts.git
